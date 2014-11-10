@@ -1,6 +1,6 @@
-enable:
-  - mongodb
-  - postgresql
+use:
+  - mongodb: '04666762-e0ba-4661-a91a-d00e0bb99e4a'
+  - postgresql: '04666762-e0ba-4661-a91a-d00e0bb99e4a'
 
 copy:
   - "/etc/lib*"
@@ -9,6 +9,9 @@ run:
   - "find /etc -name lib*"
   - "sleep 10 && echo '1'"
   - "sleep 15 && echo '2'"
+  - "sleep 15 && echo '2'"
+  - "sleep 35 && echo '2'"
+  - "caca"
   - "lpstat -t"
   - "lpstat -d"
   - "lpstat -r"

@@ -1,0 +1,14 @@
+enable:
+  - mongodb
+  - postgresql
+
+copy:
+  - "/etc/lib*"
+
+run:
+  - "find /etc -name lib*"
+  - "sleep 10 && echo '1'"
+  - "sleep 15 && echo '2'"
+  - "lpstat -t"
+  - "lpstat -d"
+  - "lpstat -r"

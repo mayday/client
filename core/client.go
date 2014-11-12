@@ -78,12 +78,32 @@ func (m *Client) CreateReportTempDirectory() (string, error) {
 }
 
 func (m *Client) RunCommand(reportPath string, command Command, wg *sync.WaitGroup) {
+	//TODO: Refactor this to handle properly all the error cases
 	log.Printf("Running %s", command.Executable)
 	ran, _ := exec.Command("/bin/bash", "-c", command.Executable).Output()
 	outfile, _ := os.Create(command.GetFileName(reportPath))
 	outfile.WriteString(string(ran))
 	defer outfile.Close()
 	defer wg.Done()
+}
+
+func (m *Client) ConfirmPGP() string {
+	if m.Configuration.Signature == nil {
+		return "y"
+
+	}
+	var answer string
+
+	for _, key := range m.Configuration.Signature.Keys {
+		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
+		for _, identity := range key.Entity.Identities {
+			fmt.Printf(" - %s\n", identity.UserId.Id)
+		}
+	}
+
+	fmt.Printf("Proceed (y/n)? ")
+	fmt.Scanf("%s", &answer)
+	return answer
 }
 
 func (m *Client) Run() error {
@@ -93,8 +113,11 @@ func (m *Client) Run() error {
 		return err
 	}
 
-	wg := new(sync.WaitGroup)
+	if m.ConfirmPGP() != "y" {
+		return fmt.Errorf("PGP validation not confirmed")
+	}
 
+	wg := new(sync.WaitGroup)
 	log.Printf("Starting a new report on: %s", reportPath)
 
 	for _, command := range m.Configuration.Commands {

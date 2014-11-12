@@ -18,6 +18,7 @@ type Command struct {
 }
 
 type Config struct {
+	Signature     *PGPSignature
 	Path          string
 	Files         []File
 	Commands      []Command
@@ -25,7 +26,7 @@ type Config struct {
 	CommandsField []string `yaml:"run"`
 }
 
-func NewConfig(path string) (*Config, error) {
+func NewConfig(path string, signaturePath string) (*Config, error) {
 	config := Config{}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -48,6 +49,25 @@ func NewConfig(path string) (*Config, error) {
 
 	if err != nil {
 		return nil, err
+	}
+
+	if signaturePath != "" {
+		signed, err := ioutil.ReadFile(signaturePath)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot read signature file: %s", signaturePath)
+		}
+
+		pgp, err := NewPGP()
+		if err != nil {
+			return nil, err
+		}
+
+		signature, err := pgp.CheckPGPSignature(readed, signed)
+		if err != nil {
+			return nil, fmt.Errorf("Invalid PGP signature: %s", err)
+		}
+
+		config.Signature = signature
 	}
 
 	return &config, nil

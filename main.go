@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	config, err := core.NewConfig("./config.yaml", "./config.yaml.sig")
+	config, err := core.NewConfig("./config.yaml", "./freyes.config.yaml.sig")
 
 	if err != nil {
 		fmt.Printf("Error %s\n", err)

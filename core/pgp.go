@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
+	"strconv"
 )
 
 type PGP struct {
-	KeyRing openpgp.EntityList
+	KeyRingPath string
+	KeyRing     *openpgp.EntityList
 }
 
 type PGPSignature struct {
@@ -28,36 +31,74 @@ func GetDefaultKeyRingPath() (string, error) {
 }
 
 func NewPGP() (*PGP, error) {
-	pgp := PGP{}
-
 	defaultKeyRingPath, err := GetDefaultKeyRingPath()
 	if err != nil {
 		return nil, err
 	}
 
-	defaultKeyRing, err := os.Open(defaultKeyRingPath)
+	return &PGP{
+		KeyRingPath: defaultKeyRingPath,
+	}, nil
+}
+
+func (p *PGP) UpdateKeyRing() error {
+	defaultKeyRing, err := os.Open(p.KeyRingPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer defaultKeyRing.Close()
 
 	entityList, err := openpgp.ReadKeyRing(defaultKeyRing)
 	if err != nil {
-		return nil, err
+		return err
 	} else {
-		pgp.KeyRing = entityList
+		p.KeyRing = &entityList
 	}
 
-	return &pgp, nil
+	return nil
+}
+
+func (p *PGP) FetchPGPKey(keyId string) error {
+	var reply string
+
+	fmt.Printf("PGP Key:%s was not found on your keyring, Do you want to import it? (y/n) ", keyId)
+	fmt.Scanf("%s", &reply)
+
+	if reply != "y" {
+		return fmt.Errorf("Key %s not found and user skipped importing", keyId)
+	}
+
+	_, err := exec.Command("gpg", "--recv-keys", keyId).Output()
+
+	if err != nil {
+		return fmt.Errorf("Cannot import key %s from public servers", keyId)
+	}
+
+	fmt.Printf("PGP Key: %s imported correctly into the keyring\n", keyId)
+	return nil
 }
 
 func (p *PGP) CheckPGPSignature(readed []byte, signed []byte) (*PGPSignature, error) {
-	message, err := openpgp.ReadMessage(bytes.NewBuffer(signed), p.KeyRing, nil, nil)
+	err := p.UpdateKeyRing()
 
-	//TODO: Handle the case on which the signature is not on the keyring
 	if err != nil {
 		return nil, err
+	}
+
+	message, err := openpgp.ReadMessage(bytes.NewBuffer(signed), p.KeyRing, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	//The message is signed but the signature is missing from the keyring
+	if message.IsSigned && message.SignedBy == nil {
+		err := p.FetchPGPKey(strconv.FormatUint(message.SignedByKeyId, 16))
+		if err != nil {
+			return nil, err
+		} else {
+			return p.CheckPGPSignature(readed, signed)
+		}
 	}
 
 	contents, err := ioutil.ReadAll(message.UnverifiedBody)

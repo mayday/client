@@ -1,131 +1,157 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"path"
-	"sync"
-	//	"net/http"
+	"net/http"
 	"os"
 	"os/exec"
-	"os/user"
-	"time"
+	"path"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 const (
-	DefaultAPIBaseURL = "https://Client.api/"
+	DefaultAPIBaseURL = "https://mayday.api"
+	DefaultAPIVersion = 1
 )
 
-type Client struct {
-	Configuration *Config
-	Hostname      string
-	ReportsPath   string
+type APIClient struct {
+	Server    string
+	UUID      string
+	AuthToken string
+	Client    *http.Client
 }
 
-func NewClient(config *Config) (*Client, error) {
-	client := Client{
-		Configuration: config,
+func NewAPIClient(server string, uuid string, authToken string) *APIClient {
+	return &APIClient{
+		Client:    &http.Client{},
+		UUID:      uuid,
+		AuthToken: authToken,
+		Server:    server,
 	}
+}
 
-	reportsPath, err := client.GetDefaultReportsPath()
+type ConfigResponse struct {
+	Signed string `json:"signed"`
+	Raw    string `json:"raw"`
+}
+
+func (api *APIClient) GetFormattedURL(prefix ...string) string {
+	return fmt.Sprintf("%s/%s/%s", api.Server, strconv.Itoa(DefaultAPIVersion),
+		strings.Join(prefix, "/"))
+}
+
+func (api *APIClient) GetConfig() (*ConfigResponse, error) {
+	request, err := http.NewRequest("GET",
+		api.GetFormattedURL(api.UUID), nil)
 
 	if err != nil {
 		return nil, err
-	} else {
-		client.ReportsPath = reportsPath
 	}
 
-	return &client, nil
-}
+	if api.AuthToken != "" {
+		request.Header.Add("Auth-Token", api.AuthToken)
+	}
 
-func (m *Client) GetDefaultReportsPath() (string, error) {
-	usr, err := user.Current()
+	response, err := api.Client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.StatusCode != 200 {
+		return nil, fmt.Errorf("Invalid server response: %s", response.Status)
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	base := path.Join(usr.HomeDir, ".mayday", "reports")
-
-	if _, err := os.Stat(base); os.IsNotExist(err) {
-		err := os.MkdirAll(base, 0700)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return base, nil
-}
-
-func (m *Client) CreateReportTempDirectory() (string, error) {
-	hostname, err := os.Hostname()
+	config := new(ConfigResponse)
+	err = json.Unmarshal(body, &config)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	current := time.Now().Local()
-	//TODO: Make the report format configurable via CLI
-	reportPath, err := ioutil.TempDir(m.ReportsPath,
-		fmt.Sprintf("%s-%d-%d-%d-", hostname, current.Year(), current.Month(), current.Day()))
+	return config, nil
+}
 
+type Client struct {
+	Hostname    string
+	ReportsPath string
+	APIClient   *APIClient
+}
+
+func NewClient(server string, uuid string, authToken string) (*Client, error) {
+	reportsPath, err := GetDefaultReportsDirectory()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return reportPath, nil
+	return &Client{
+		ReportsPath: reportsPath,
+		APIClient:   NewAPIClient(server, uuid, authToken),
+	}, nil
 }
 
-func (m *Client) RunCommand(reportPath string, command Command, wg *sync.WaitGroup) {
-	//TODO: Refactor this to handle properly all the error cases
-	log.Printf("Running %s", command.Executable)
-	ran, _ := exec.Command("/bin/bash", "-c", command.Executable).Output()
-	outfile, _ := os.Create(command.GetFileName(reportPath))
-	outfile.WriteString(string(ran))
-	defer outfile.Close()
-	defer wg.Done()
-}
+// func (m *Client) ConfirmPGP() string {
+// 	if m.Configuration.Signature == nil {
+// 		return "y"
 
-func (m *Client) ConfirmPGP() string {
-	if m.Configuration.Signature == nil {
-		return "y"
+// 	}
+// 	var answer string
 
-	}
-	var answer string
+// 	for _, key := range m.Configuration.Signature.Keys {
+// 		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
+// 		for _, identity := range key.Entity.Identities {
+// 			fmt.Printf(" - %s\n", identity.UserId.Id)
+// 		}
+// 	}
 
-	for _, key := range m.Configuration.Signature.Keys {
-		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
-		for _, identity := range key.Entity.Identities {
-			fmt.Printf(" - %s\n", identity.UserId.Id)
-		}
-	}
+// 	fmt.Printf("Proceed (y/n)? ")
+// 	fmt.Scanf("%s", &answer)
+// 	return answer
+// }
 
-	fmt.Printf("Proceed (y/n)? ")
-	fmt.Scanf("%s", &answer)
-	return answer
-}
-
-func (m *Client) Run() error {
-	reportPath, err := m.CreateReportTempDirectory()
+func (client *Client) Run(pgp bool, upload bool) error {
+	reportPath, err := GetTempReportDirectory()
 
 	if err != nil {
 		return err
 	}
 
-	if m.ConfirmPGP() != "y" {
-		return fmt.Errorf("PGP validation not confirmed")
+	apiConfig, err := client.APIClient.GetConfig()
+	if err != nil {
+		return fmt.Errorf("Error getting configuration from server: %s", err)
+	}
+
+	config, err := NewConfig(apiConfig.Raw, apiConfig.Signed)
+	if err != nil {
+		return err
+	}
+
+	if pgp {
+		err := config.CheckPGPSignature()
+		if err != nil {
+			return err
+		}
 	}
 
 	wg := new(sync.WaitGroup)
 	log.Printf("Starting a new report on: %s", reportPath)
 
-	for _, command := range m.Configuration.Commands {
+	for _, command := range config.Commands {
 		wg.Add(1)
-		go m.RunCommand(reportPath, command, wg)
+		go client.RunCommand(reportPath, command, wg)
 	}
 
-	for _, file := range m.Configuration.Files {
+	for _, file := range config.Files {
 		finfo, err := os.Stat(file.Path)
 		if err != nil {
 			log.Printf("Cannot stat file:%s", file.Path)
@@ -144,34 +170,16 @@ func (m *Client) Run() error {
 	return nil
 }
 
+func (m *Client) RunCommand(reportPath string, command Command, wg *sync.WaitGroup) {
+	//TODO: Refactor this to handle properly all the error cases
+	log.Printf("Running %s", command.Executable)
+	ran, _ := exec.Command("/bin/bash", "-c", command.Executable).Output()
+	outfile, _ := os.Create(command.GetFileName(reportPath))
+	outfile.WriteString(string(ran))
+	defer outfile.Close()
+	defer wg.Done()
+}
+
 func (c *Command) GetFileName(Base string) string {
 	return path.Join(Base, MangleCommand(c.Executable))
 }
-
-// func NewConfigFromURL(id string, authCode string, apiURL string) (*Config, error) {
-// 	client := &http.Client{}
-
-// 	if apiURL == "" {
-
-// 		apiURL = DefaultAPIURL
-// 	}
-
-// 	request, err := http.NewRequest("GET",
-// 		fmt.Sprintf("%s/report/config", apiURL), nil)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	if authCode != "" {
-// 		request.Header.Add("Auth-Code", authCode)
-// 	}
-
-// 	resp, err := client.Do(request)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &Config{}, nil
-// }

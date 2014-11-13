@@ -79,14 +79,14 @@ func (p *PGP) FetchPGPKey(keyId string) error {
 	return nil
 }
 
-func (p *PGP) CheckPGPSignature(readed []byte, signed []byte) (*PGPSignature, error) {
+func (p *PGP) CheckPGPSignature(readed string, signed string) (*PGPSignature, error) {
 	err := p.UpdateKeyRing()
 
 	if err != nil {
 		return nil, err
 	}
 
-	message, err := openpgp.ReadMessage(bytes.NewBuffer(signed), p.KeyRing, nil, nil)
+	message, err := openpgp.ReadMessage(bytes.NewBuffer([]byte(signed)), p.KeyRing, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +96,9 @@ func (p *PGP) CheckPGPSignature(readed []byte, signed []byte) (*PGPSignature, er
 		err := p.FetchPGPKey(strconv.FormatUint(message.SignedByKeyId, 16))
 		if err != nil {
 			return nil, err
-		} else {
-			return p.CheckPGPSignature(readed, signed)
 		}
+
+		return p.CheckPGPSignature(readed, signed)
 	}
 
 	contents, err := ioutil.ReadAll(message.UnverifiedBody)

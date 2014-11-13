@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	goyaml "gopkg.in/yaml.v1"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 )
 
@@ -19,30 +17,24 @@ type Command struct {
 
 type Config struct {
 	Signature     *PGPSignature
-	Path          string
+	Raw           string
+	Signed        string
 	Files         []File
 	Commands      []Command
 	FilesField    []string `yaml:"copy"`
 	CommandsField []string `yaml:"run"`
 }
 
-func NewConfig(path string, signaturePath string) (*Config, error) {
-	config := Config{}
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Cannot find configuration path: %s", path)
+func NewConfig(raw string, signed string) (*Config, error) {
+	config := Config{
+		Signed: signed,
+		Raw:    raw,
 	}
 
-	readed, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot read configuration file")
-	}
+	err := goyaml.Unmarshal([]byte(raw), &config)
 
-	err = goyaml.Unmarshal(readed, &config)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read configuration: %v", err)
-	} else {
-		config.Path = path
 	}
 
 	err = ValidateConfig(&config)
@@ -51,26 +43,25 @@ func NewConfig(path string, signaturePath string) (*Config, error) {
 		return nil, err
 	}
 
-	if signaturePath != "" {
-		signed, err := ioutil.ReadFile(signaturePath)
-		if err != nil {
-			return nil, fmt.Errorf("Cannot read signature file: %s", signaturePath)
-		}
+	return &config, nil
+}
 
-		pgp, err := NewPGP()
-		if err != nil {
-			return nil, err
-		}
+func (c *Config) CheckPGPSignature() error {
+	pgp, err := NewPGP()
 
-		signature, err := pgp.CheckPGPSignature(readed, signed)
-		if err != nil {
-			return nil, fmt.Errorf("Invalid PGP signature: %s", err)
-		}
-
-		config.Signature = signature
+	if err != nil {
+		return err
 	}
 
-	return &config, nil
+	signature, err := pgp.CheckPGPSignature(c.Raw, c.Signed)
+
+	if err != nil {
+		return fmt.Errorf("Invalid PGP signature: %s", err)
+	} else {
+		c.Signature = signature
+	}
+
+	return nil
 }
 
 func (c *Config) GetFiles() ([]File, error) {

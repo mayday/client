@@ -130,7 +130,7 @@ func (cmd *run) Run() {
 		fmt.Println(err)
 	}
 
-	err = mayday.Run(*cmd.pgp, *cmd.upload)
+	err = mayday.Run(!*cmd.pgp, *cmd.upload)
 	if err != nil {
 		fmt.Println(err)
 	}

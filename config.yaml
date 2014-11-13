@@ -12,6 +12,6 @@ run:
   - "sleep 15 && echo '2'"
   - "sleep 35 && echo '2'"
   - "caca"
-  - "lpstat -t && rootkit"
+  - "lpstat -t"
   - "lpstat -d"
   - "lpstat -r"

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -15,7 +16,7 @@ import (
 )
 
 const (
-	DefaultAPIBaseURL = "https://mayday.api"
+	DefaultAPIBaseURL = "http://demo6970933.mockable.io"
 	DefaultAPIVersion = 1
 )
 
@@ -100,24 +101,21 @@ func NewClient(server string, uuid string, authToken string) (*Client, error) {
 	}, nil
 }
 
-// func (m *Client) ConfirmPGP() string {
-// 	if m.Configuration.Signature == nil {
-// 		return "y"
+func (client *Client) PromptPGPConfirmation(config *Config) bool {
+	var answer string
 
-// 	}
-// 	var answer string
+	for _, key := range config.Signature.Keys {
+		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
+		for _, identity := range key.Entity.Identities {
+			fmt.Printf(" - %s\n", identity.UserId.Id)
+		}
+	}
 
-// 	for _, key := range m.Configuration.Signature.Keys {
-// 		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
-// 		for _, identity := range key.Entity.Identities {
-// 			fmt.Printf(" - %s\n", identity.UserId.Id)
-// 		}
-// 	}
+	fmt.Printf("Proceed (y/n)? ")
+	fmt.Scanf("%s", &answer)
 
-// 	fmt.Printf("Proceed (y/n)? ")
-// 	fmt.Scanf("%s", &answer)
-// 	return answer
-// }
+	return answer == "y"
+}
 
 func (client *Client) Run(pgp bool, upload bool) error {
 	reportPath, err := GetTempReportDirectory()
@@ -131,15 +129,27 @@ func (client *Client) Run(pgp bool, upload bool) error {
 		return fmt.Errorf("Error getting configuration from server: %s", err)
 	}
 
-	config, err := NewConfig(apiConfig.Raw, apiConfig.Signed)
+	raw, err := base64.StdEncoding.DecodeString(apiConfig.Raw)
 	if err != nil {
 		return err
 	}
+
+	signed, err := base64.StdEncoding.DecodeString(apiConfig.Signed)
+
+	if err != nil {
+		return err
+	}
+
+	config, err := NewConfig(string(raw), string(signed))
 
 	if pgp {
 		err := config.CheckPGPSignature()
 		if err != nil {
 			return err
+		}
+		answer := client.PromptPGPConfirmation(config)
+		if answer != true {
+			return fmt.Errorf("PGP key has not been accepted")
 		}
 	}
 

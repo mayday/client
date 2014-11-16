@@ -2,86 +2,13 @@ package core
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
-	"strconv"
-	"strings"
 	"sync"
 )
-
-const (
-	DefaultAPIBaseURL = "http://demo6970933.mockable.io"
-	DefaultAPIVersion = 1
-)
-
-type APIClient struct {
-	Server    string
-	UUID      string
-	AuthToken string
-	Client    *http.Client
-}
-
-func NewAPIClient(server string, uuid string, authToken string) *APIClient {
-	return &APIClient{
-		Client:    &http.Client{},
-		UUID:      uuid,
-		AuthToken: authToken,
-		Server:    server,
-	}
-}
-
-type ConfigResponse struct {
-	Signed string `json:"signed"`
-	Raw    string `json:"raw"`
-}
-
-func (api *APIClient) GetFormattedURL(prefix ...string) string {
-	return fmt.Sprintf("%s/%s/%s", api.Server, strconv.Itoa(DefaultAPIVersion),
-		strings.Join(prefix, "/"))
-}
-
-func (api *APIClient) GetConfig() (*ConfigResponse, error) {
-	request, err := http.NewRequest("GET",
-		api.GetFormattedURL(api.UUID), nil)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if api.AuthToken != "" {
-		request.Header.Add("Auth-Token", api.AuthToken)
-	}
-
-	response, err := api.Client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-
-	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("Invalid server response: %s", response.Status)
-	}
-
-	body, err := ioutil.ReadAll(response.Body)
-
-	if err != nil {
-		return nil, err
-	}
-
-	config := new(ConfigResponse)
-	err = json.Unmarshal(body, &config)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
-}
 
 type Client struct {
 	Hostname    string
@@ -99,22 +26,6 @@ func NewClient(server string, uuid string, authToken string) (*Client, error) {
 		ReportsPath: reportsPath,
 		APIClient:   NewAPIClient(server, uuid, authToken),
 	}, nil
-}
-
-func (client *Client) PromptPGPConfirmation(config *Config) bool {
-	var answer string
-
-	for _, key := range config.Signature.Keys {
-		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
-		for _, identity := range key.Entity.Identities {
-			fmt.Printf(" - %s\n", identity.UserId.Id)
-		}
-	}
-
-	fmt.Printf("Proceed (y/n)? ")
-	fmt.Scanf("%s", &answer)
-
-	return answer == "y"
 }
 
 func (client *Client) Run(pgp bool, upload bool) error {
@@ -147,7 +58,7 @@ func (client *Client) Run(pgp bool, upload bool) error {
 		if err != nil {
 			return err
 		}
-		answer := client.PromptPGPConfirmation(config)
+		answer := PromptPGPConfirmation(config)
 		if answer != true {
 			return fmt.Errorf("PGP key has not been accepted")
 		}
@@ -176,7 +87,6 @@ func (client *Client) Run(pgp bool, upload bool) error {
 	}
 
 	wg.Wait()
-
 	return nil
 }
 

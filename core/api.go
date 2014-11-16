@@ -110,3 +110,33 @@ func (api *APIClient) GetConfig() (*ConfigResponse, error) {
 
 	return config, nil
 }
+
+func (api *APIClient) UpdateConfig() (*ConfigResponse, error) {
+	response, err := api.NewRequest("UPDATE", api.GetFormattedURL(api.UUID))
+
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := NewConfigResponse(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+func (api *APIClient) CreateConfig() (*ConfigResponse, error) {
+	response, err := api.NewRequest("POST", api.GetFormattedURL(api.UUID))
+
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := NewConfigResponse(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}

@@ -30,10 +30,6 @@ func NewAPIClient(server string, uuid string, authToken string) *APIClient {
 	}
 }
 
-type Response interface {
-	GetData()
-}
-
 type ConfigResponse struct {
 	Signed string
 	Raw    string

@@ -16,12 +16,12 @@ func (cmd *PushCommand) Name() string {
 }
 
 func (cmd *PushCommand) Description() string {
-	return "Create a new case and upload the configuration file"
+	return "Create or update a case and upload the configuration file"
 }
 
 func (cmd *PushCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.uuid = fs.String("uuid", "", "PGP KeyID to sign the new configuration")
-	cmd.pgpkeyid = fs.String("pgp-keyid", "", "PGP KeyID to sign the new configuration")
+	cmd.pgpkeyid = fs.String("keyid", "", "PGP KeyID to sign the new configuration")
 	cmd.server = fs.String("server", core.DefaultAPIBaseURL, "Mayday server address")
 }
 

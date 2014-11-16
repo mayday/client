@@ -13,6 +13,7 @@ type RunCommand struct {
 	server *string
 	auth   *string
 	upload *bool
+	dryRun *bool
 }
 
 func (cmd *RunCommand) Name() string {
@@ -26,6 +27,7 @@ func (cmd *RunCommand) Description() string {
 func (cmd *RunCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.pgp = fs.Bool("no-pgp", false, "Disable pgp signature validation")
 	cmd.upload = fs.Bool("no-upload", false, "Don't upload generated reports")
+	cmd.dryRun = fs.Bool("dry-run", false, "Don't run, just output the steps")
 	cmd.uuid = fs.String("uuid", "", "Mayday server address")
 	cmd.server = fs.String("server", core.DefaultAPIBaseURL, "Mayday server address")
 	cmd.auth = fs.String("auth", "", "PGP KeyID to sign the new configuration")

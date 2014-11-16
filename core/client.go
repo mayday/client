@@ -40,6 +40,9 @@ func (client *Client) Run(pgp bool, upload bool) error {
 	}
 
 	config, err := NewConfig(apiConfig.GetRawDecoded(), apiConfig.GetSignedDecoded())
+	if err != nil {
+		return err
+	}
 
 	if pgp {
 		err := config.CheckPGPSignature()

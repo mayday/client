@@ -27,16 +27,13 @@ func NewClient(server string, uuid string, authToken string) (*Client, error) {
 	}, nil
 }
 
-func (client *Client) Show() error {
+func (client *Client) Show() (string, string, error) {
 	apiConfig, err := client.APIClient.GetConfig()
 	if err != nil {
-		return fmt.Errorf("Error getting configuration from server: %s", err)
+		return "", "", fmt.Errorf("Error getting configuration from server: %s", err)
 	}
 
-	fmt.Printf("\nCurrent configuration for case uuid: %s\n\n", client.APIClient.UUID)
-	fmt.Printf("%s\n\n", apiConfig.GetRawDecoded())
-
-	return nil
+	return client.APIClient.UUID, apiConfig.GetRawDecoded(), nil
 }
 
 func (client *Client) Run(pgp bool, upload bool) error {

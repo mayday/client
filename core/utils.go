@@ -78,6 +78,22 @@ func GetReportConfigFiles(base string) (string, string) {
 	return path.Join(base, "config.yaml"), path.Join(base, "config.yaml.sig")
 }
 
+func PromptPGPConfirmation(config *Config) bool {
+	var answer string
+
+	for _, key := range config.Signature.Keys {
+		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
+		for _, identity := range key.Entity.Identities {
+			fmt.Printf(" - %s\n", identity.UserId.Id)
+		}
+	}
+
+	fmt.Printf("Proceed (y/n)? ")
+	fmt.Scanf("%s", &answer)
+
+	return answer == "y"
+}
+
 func CopyFile(source string, dest string) (err error) {
 	sourcefile, err := os.Open(source)
 	if err != nil {

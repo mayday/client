@@ -1,9 +1,9 @@
 package core
 
 import (
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	simplejson "github.com/bitly/go-simplejson"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,9 +30,40 @@ func NewAPIClient(server string, uuid string, authToken string) *APIClient {
 	}
 }
 
+type Response interface {
+	GetData()
+}
+
 type ConfigResponse struct {
-	Signed string `json:"signed"`
-	Raw    string `json:"raw"`
+	Signed string
+	Raw    string
+}
+
+func NewConfigResponse(json *simplejson.Json) (*ConfigResponse, error) {
+	raw, err := json.Get("raw").String()
+	if err != nil {
+		return nil, err
+	}
+
+	signed, err := json.Get("signed").String()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConfigResponse{
+		Raw:    raw,
+		Signed: signed,
+	}, nil
+}
+
+func (c *ConfigResponse) GetRawDecoded() string {
+	rawDecoded, _ := base64.StdEncoding.DecodeString(c.Raw)
+	return string(rawDecoded)
+}
+
+func (c *ConfigResponse) GetSignedDecoded() string {
+	signedDecoded, _ := base64.StdEncoding.DecodeString(c.Signed)
+	return string(signedDecoded)
 }
 
 func (api *APIClient) GetFormattedURL(prefix ...string) string {
@@ -40,10 +71,8 @@ func (api *APIClient) GetFormattedURL(prefix ...string) string {
 		strings.Join(prefix, "/"))
 }
 
-func (api *APIClient) GetConfig() (*ConfigResponse, error) {
-	request, err := http.NewRequest("GET",
-		api.GetFormattedURL(api.UUID), nil)
-
+func (api *APIClient) NewRequest(method string, url string) (*simplejson.Json, error) {
+	request, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -61,15 +90,24 @@ func (api *APIClient) GetConfig() (*ConfigResponse, error) {
 		return nil, fmt.Errorf("Invalid server response: %s", response.Status)
 	}
 
-	body, err := ioutil.ReadAll(response.Body)
+	defer response.Body.Close()
+	reader, err := simplejson.NewFromReader(response.Body)
 
 	if err != nil {
 		return nil, err
 	}
 
-	config := new(ConfigResponse)
-	err = json.Unmarshal(body, &config)
+	return reader, nil
+}
 
+func (api *APIClient) GetConfig() (*ConfigResponse, error) {
+	response, err := api.NewRequest("GET", api.GetFormattedURL(api.UUID))
+
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := NewConfigResponse(response)
 	if err != nil {
 		return nil, err
 	}

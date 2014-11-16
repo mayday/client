@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -40,18 +39,7 @@ func (client *Client) Run(pgp bool, upload bool) error {
 		return fmt.Errorf("Error getting configuration from server: %s", err)
 	}
 
-	raw, err := base64.StdEncoding.DecodeString(apiConfig.Raw)
-	if err != nil {
-		return err
-	}
-
-	signed, err := base64.StdEncoding.DecodeString(apiConfig.Signed)
-
-	if err != nil {
-		return err
-	}
-
-	config, err := NewConfig(string(raw), string(signed))
+	config, err := NewConfig(apiConfig.GetRawDecoded(), apiConfig.GetSignedDecoded())
 
 	if pgp {
 		err := config.CheckPGPSignature()

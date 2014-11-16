@@ -9,5 +9,6 @@ func main() {
 		new(commands.RunCommand),
 		new(commands.PushCommand),
 		new(commands.PullCommand),
+		new(commands.ShowCommand),
 	)
 }

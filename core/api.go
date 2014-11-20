@@ -1,7 +1,9 @@
 package core
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	simplejson "github.com/bitly/go-simplejson"
 	"net/http"
@@ -10,7 +12,7 @@ import (
 )
 
 const (
-	DefaultAPIBaseURL = "http://demo6970933.mockable.io"
+	DefaultAPIBaseURL = "http://localhost:8080"
 	DefaultAPIVersion = 1
 )
 
@@ -28,6 +30,42 @@ func NewAPIClient(server string, uuid string, authToken string) *APIClient {
 		AuthToken: authToken,
 		Server:    server,
 	}
+}
+
+type CaseResponse struct {
+	Id        int
+	Created   string
+	IsPrivate bool
+	Token     string
+}
+
+func NewCaseResponse(json *simplejson.Json) (*CaseResponse, error) {
+	isPrivate, err := json.Get("IsPrivate").Bool()
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := json.Get("Id").Int()
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := json.Get("Token").String()
+	if err != nil {
+		return nil, err
+	}
+
+	created, err := json.Get("Created").String()
+	if err != nil {
+		return nil, err
+	}
+
+	return &CaseResponse{
+		Id:        id,
+		Created:   created,
+		IsPrivate: isPrivate,
+		Token:     token,
+	}, nil
 }
 
 type ConfigResponse struct {
@@ -67,10 +105,14 @@ func (api *APIClient) GetFormattedURL(prefix ...string) string {
 		strings.Join(prefix, "/"))
 }
 
-func (api *APIClient) NewRequest(method string, url string) (*simplejson.Json, error) {
-	request, err := http.NewRequest(method, url, nil)
+func (api *APIClient) NewRequest(method string, url string, params []byte, validStatus []int) (*simplejson.Json, error) {
+	request, err := http.NewRequest(method, url, bytes.NewReader(params))
 	if err != nil {
 		return nil, err
+	}
+
+	if method == "POST" {
+		request.Header.Set("Content-Type", "application/json")
 	}
 
 	if api.AuthToken != "" {
@@ -82,7 +124,7 @@ func (api *APIClient) NewRequest(method string, url string) (*simplejson.Json, e
 		return nil, err
 	}
 
-	if response.StatusCode != 200 {
+	if !Contains(validStatus, response.StatusCode) {
 		return nil, fmt.Errorf("Invalid server response: %s", response.Status)
 	}
 
@@ -97,7 +139,7 @@ func (api *APIClient) NewRequest(method string, url string) (*simplejson.Json, e
 }
 
 func (api *APIClient) GetConfig() (*ConfigResponse, error) {
-	response, err := api.NewRequest("GET", api.GetFormattedURL(api.UUID))
+	response, err := api.NewRequest("GET", api.GetFormattedURL("case", api.UUID), nil, []int{200})
 
 	if err != nil {
 		return nil, err
@@ -111,32 +153,24 @@ func (api *APIClient) GetConfig() (*ConfigResponse, error) {
 	return config, nil
 }
 
-func (api *APIClient) UpdateConfig() (*ConfigResponse, error) {
-	response, err := api.NewRequest("UPDATE", api.GetFormattedURL(api.UUID))
+func (api *APIClient) CreateCase() (*CaseResponse, error) {
+	b, err := json.Marshal(CaseResponse{
+		IsPrivate: true,
+	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := NewConfigResponse(response)
+	response, err := api.NewRequest("POST", api.GetFormattedURL("case"), b, []int{201})
 	if err != nil {
 		return nil, err
 	}
 
-	return config, nil
-}
-
-func (api *APIClient) CreateConfig() (*ConfigResponse, error) {
-	response, err := api.NewRequest("POST", api.GetFormattedURL(api.UUID))
-
+	new_case, err := NewCaseResponse(response)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := NewConfigResponse(response)
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
+	return new_case, nil
 }

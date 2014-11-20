@@ -27,6 +27,15 @@ func NewClient(server string, uuid string, authToken string) (*Client, error) {
 	}, nil
 }
 
+func (client *Client) Create() (interface{}, error) {
+	new_case, err := client.APIClient.CreateCase()
+	if err != nil {
+		return "", fmt.Errorf("Error creating new case on server: %s", err)
+	}
+
+	return new_case, nil
+}
+
 func (client *Client) Show() (string, string, error) {
 	apiConfig, err := client.APIClient.GetConfig()
 	if err != nil {
@@ -36,7 +45,7 @@ func (client *Client) Show() (string, string, error) {
 	return client.APIClient.UUID, apiConfig.GetRawDecoded(), nil
 }
 
-func (client *Client) Run(pgp bool, upload bool) error {
+func (client *Client) Run(pgp bool, upload bool, timeout int, dryRun bool) error {
 	reportPath, err := GetTempReportDirectory()
 
 	if err != nil {
@@ -91,7 +100,33 @@ func (client *Client) Run(pgp bool, upload bool) error {
 }
 
 func (m *Client) RunCommand(reportPath string, command Command, wg *sync.WaitGroup) {
-	//TODO: Refactor this to handle properly all the error cases
+	// cmd := exec.Command("/bin/bash", "-c", command.Executable)
+
+	// if timeout == 0 {
+	// 	if err := cmd.Start(); err != nil {
+
+	// 	} else {
+	// 		log.Printf("Running command: %s", command.Executable)
+	// 	}
+	// } else {
+	// 	done := make(chan error)
+	// 	go func() {
+	// 		done <- cmd.Run()
+	// 	}()
+
+	// 	select {
+	// 	case <-time.After(time.Duration(timeout) * time.Second):
+	// 		if err := cmd.Process.kill(); err != nil {
+	// 			log.Fatal("Cannot kill process: ", err)
+	// 		}
+	// 		<- done
+	// 		log.Printf("Command:%s killed by timeout", command.Executable)
+	// 	case err := <- done:
+
+	// }
+
+	// defer close(done)
+
 	log.Printf("Running %s", command.Executable)
 	ran, _ := exec.Command("/bin/bash", "-c", command.Executable).Output()
 	outfile, _ := os.Create(command.GetFileName(reportPath))

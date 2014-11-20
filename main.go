@@ -7,8 +7,9 @@ import (
 func main() {
 	commands.Parse(
 		new(commands.RunCommand),
-		new(commands.PushCommand),
+		new(commands.UpdateCommand),
 		new(commands.PullCommand),
 		new(commands.ShowCommand),
+		new(commands.CreateCommand),
 	)
 }

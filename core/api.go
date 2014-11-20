@@ -33,10 +33,13 @@ func NewAPIClient(server string, uuid string, authToken string) *APIClient {
 }
 
 type CaseResponse struct {
-	Id        int
-	Created   string
-	IsPrivate bool
-	Token     string
+	Id          int
+	Description string
+	Created     string `json:",omitempty"`
+	IsPrivate   bool
+	Signed      string
+	Config      string
+	Token       string
 }
 
 func NewCaseResponse(json *simplejson.Json) (*CaseResponse, error) {
@@ -153,19 +156,24 @@ func (api *APIClient) GetConfig() (*ConfigResponse, error) {
 	return config, nil
 }
 
-func (api *APIClient) CreateCase() (*CaseResponse, error) {
-	b, err := json.Marshal(CaseResponse{
-		IsPrivate: true,
+func (api *APIClient) Create(description string, private bool, config *Config) (*CaseResponse, error) {
+	c, err := json.Marshal(CaseResponse{
+		IsPrivate:   private,
+		Description: description,
+		Config:      config.Raw,
+		Signed:      config.Signed,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := api.NewRequest("POST", api.GetFormattedURL("case"), b, []int{201})
+	response, err := api.NewRequest("POST", api.GetFormattedURL("case"), c, []int{201})
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println(response)
 
 	new_case, err := NewCaseResponse(response)
 	if err != nil {

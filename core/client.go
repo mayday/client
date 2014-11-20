@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -27,10 +28,27 @@ func NewClient(server string, uuid string, authToken string) (*Client, error) {
 	}, nil
 }
 
-func (client *Client) Create() (interface{}, error) {
-	new_case, err := client.APIClient.CreateCase()
+func (client *Client) Create(configPath string, description string, private bool, pgp bool, keyid string) (interface{}, error) {
+	readed, err := ioutil.ReadFile(configPath)
 	if err != nil {
-		return "", fmt.Errorf("Error creating new case on server: %s", err)
+		return nil, fmt.Errorf("error reading configuration file from path: %s", err)
+	}
+
+	config, err := NewConfig(string(readed))
+	if err != nil {
+		return nil, err
+	}
+
+	if pgp {
+		err = config.Sign(keyid)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	new_case, err := client.APIClient.Create(description, private, config)
+	if err != nil {
+		return "", fmt.Errorf("error creating new case on server: %s", err)
 	}
 
 	return new_case, nil
@@ -57,17 +75,18 @@ func (client *Client) Run(pgp bool, upload bool, timeout int, dryRun bool) error
 		return fmt.Errorf("Error getting configuration from server: %s", err)
 	}
 
-	config, err := NewConfig(apiConfig.GetRawDecoded(), apiConfig.GetSignedDecoded())
+	config, err := NewConfig(apiConfig.GetRawDecoded())
 	if err != nil {
 		return err
 	}
 
 	if pgp {
-		err := config.CheckPGPSignature()
+		signature, err := config.Verify(apiConfig.GetSignedDecoded())
 		if err != nil {
 			return err
 		}
-		answer := PromptPGPConfirmation(config)
+
+		answer := ConfirmKey(signature, config)
 		if answer != true {
 			return fmt.Errorf("PGP key has not been accepted")
 		}

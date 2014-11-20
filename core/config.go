@@ -16,29 +16,24 @@ type Command struct {
 }
 
 type Config struct {
-	Signature     *PGPSignature
-	Raw           string
 	Signed        string
+	Raw           string
 	Files         []File
 	Commands      []Command
 	FilesField    []string `yaml:"copy"`
 	CommandsField []string `yaml:"run"`
 }
 
-func NewConfig(raw string, signed string) (*Config, error) {
-	config := Config{
-		Signed: signed,
-		Raw:    raw,
-	}
+func NewConfig(readed string) (*Config, error) {
+	config := Config{Raw: readed}
 
-	err := goyaml.Unmarshal([]byte(raw), &config)
+	err := goyaml.Unmarshal([]byte(readed), &config)
 
 	if err != nil {
 		return nil, fmt.Errorf("cannot read configuration: %v", err)
 	}
 
 	err = ValidateConfig(&config)
-
 	if err != nil {
 		return nil, err
 	}
@@ -46,22 +41,36 @@ func NewConfig(raw string, signed string) (*Config, error) {
 	return &config, nil
 }
 
-func (c *Config) CheckPGPSignature() error {
+func (c *Config) Sign(keyid string) error {
 	pgp, err := NewPGP()
 
 	if err != nil {
 		return err
 	}
 
-	signature, err := pgp.CheckPGPSignature(c.Raw, c.Signed)
-
+	signed, err := pgp.Sign(c.Raw, keyid)
 	if err != nil {
-		return fmt.Errorf("Invalid PGP signature: %s", err)
+		return fmt.Errorf("cannot sign configuration: %s", err)
 	} else {
-		c.Signature = signature
+		c.Signed = signed
 	}
 
 	return nil
+}
+
+func (c *Config) Verify(signed string) (*PGPSignature, error) {
+	pgp, err := NewPGP()
+
+	if err != nil {
+		return nil, err
+	}
+
+	signature, err := pgp.Verify(c.Raw, signed)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pgp signature: %s", err)
+	}
+
+	return signature, nil
 }
 
 func (c *Config) GetFiles() ([]File, error) {

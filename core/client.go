@@ -29,6 +29,7 @@ func NewClient(server string, uuid string, authToken string) (*Client, error) {
 }
 
 func (client *Client) Create(configPath string, description string, private bool, pgp bool, keyid string) (interface{}, error) {
+
 	readed, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading configuration file from path: %s", err)
@@ -55,12 +56,12 @@ func (client *Client) Create(configPath string, description string, private bool
 }
 
 func (client *Client) Show() (string, string, error) {
-	apiConfig, err := client.APIClient.GetConfig()
+	apiConfig, err := client.APIClient.Config()
 	if err != nil {
 		return "", "", fmt.Errorf("Error getting configuration from server: %s", err)
 	}
 
-	return client.APIClient.UUID, apiConfig.GetRawDecoded(), nil
+	return client.APIClient.Id, apiConfig.Config, nil
 }
 
 func (client *Client) Run(pgp bool, upload bool, timeout int, dryRun bool) error {
@@ -70,23 +71,23 @@ func (client *Client) Run(pgp bool, upload bool, timeout int, dryRun bool) error
 		return err
 	}
 
-	apiConfig, err := client.APIClient.GetConfig()
+	apiConfig, err := client.APIClient.Config()
 	if err != nil {
 		return fmt.Errorf("Error getting configuration from server: %s", err)
 	}
 
-	config, err := NewConfig(apiConfig.GetRawDecoded())
+	config, err := NewConfig(apiConfig.Config)
 	if err != nil {
 		return err
 	}
 
 	if pgp {
-		signature, err := config.Verify(apiConfig.GetSignedDecoded())
+		entity, err := config.Verify(apiConfig.Signed)
 		if err != nil {
 			return err
 		}
 
-		answer := ConfirmKey(signature, config)
+		answer := ConfirmKey(entity, config)
 		if answer != true {
 			return fmt.Errorf("PGP key has not been accepted")
 		}

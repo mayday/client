@@ -11,5 +11,6 @@ func main() {
 		new(commands.PullCommand),
 		new(commands.ShowCommand),
 		new(commands.CreateCommand),
+		new(commands.ServerCommand),
 	)
 }

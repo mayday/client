@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"code.google.com/p/go-uuid/uuid"
@@ -8,7 +8,11 @@ import (
 	"github.com/emicklei/go-restful/swagger"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
+	"mayday/core"
 	"net/http"
+	"os"
+	"path"
+	"strconv"
 	"time"
 )
 
@@ -36,7 +40,9 @@ type Case struct {
 	Files       []*File `orm:"reverse(many)"`
 }
 
-type CaseHandler struct{}
+type CaseHandler struct {
+	StoragePath string
+}
 
 func (handler *CaseHandler) Create(request *restful.Request, response *restful.Response) {
 	c := new(Case)
@@ -64,40 +70,73 @@ func (handler *CaseHandler) Create(request *restful.Request, response *restful.R
 }
 
 func (handler *CaseHandler) Get(request *restful.Request, response *restful.Response) {
-	// id := request.PathParameter("case-id")
-	// c := Case{Id: id}
+	id, err := strconv.Atoi(request.PathParameter("case-id"))
 
-	// o := orm.NewOrm()
-	// err := o.Read(&c)
-	// if err {
-	// 	response.WriteErrorString(http.StatusInternalServerError, err.Error())
-	// }
+	if err != nil {
+		response.WriteErrorString(http.StatusInternalServerError, "invalid provided id")
+		return
+	}
 
-	// response.WriteEntity(Case{})
+	c := Case{Id: id}
+	o := orm.NewOrm()
+
+	err = o.Read(&c)
+
+	if err != nil {
+		response.WriteErrorString(http.StatusNotFound, err.Error())
+		return
+	}
+
+	if c.IsPrivate {
+		token := request.QueryParameter("token")
+		if c.Token != token || token == "" {
+			response.WriteErrorString(http.StatusForbidden, "Invalid Token")
+			return
+		}
+	}
+
+	o.LoadRelated(&c, "Files")
+	response.WriteEntity(c)
 }
 
 func init() {
-	orm.RegisterModel(new(Case))
+	orm.RegisterModel(new(Case), new(File))
 	orm.RegisterDataBase("default", "sqlite3", "/tmp/database.db", 30)
 	orm.RunCommand()
-	// Database alias.
+
 	name := "default"
-
-	// Drop table and re-create.
 	force := false
+	verbose := false
 
-	// Print log.
-	verbose := true
-
-	// Error.
 	err := orm.RunSyncdb(name, force, verbose)
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
-func main() {
+func GetDefaultStoragePath() string {
+	base, err := core.GetDefaultDirectory()
+
+	if err != nil {
+		return ""
+	}
+
+	base = path.Join(base, "files")
+	if _, err := os.Stat(base); os.IsNotExist(err) {
+		os.Mkdir(base, 0700)
+	}
+
+	return base
+}
+
+func Start(bind string, port int, storage string) {
 	handler := &CaseHandler{}
+
+	if _, err := os.Stat(storage); os.IsNotExist(err) || storage == "" {
+		storage = GetDefaultStoragePath()
+	}
+
+	handler.StoragePath = storage
 
 	ws := new(restful.WebService)
 	ws.Path("/1/case").
@@ -109,6 +148,7 @@ func main() {
 		Doc("get a specific report").
 		Operation("findCase").
 		Param(ws.PathParameter("case-id", "case identifier").DataType("int")).
+		Param(ws.QueryParameter("token", "private token identifier")).
 		Writes(Case{}))
 
 	ws.Route(ws.POST("").To(handler.Create).
@@ -127,7 +167,7 @@ func main() {
 	}
 
 	swagger.RegisterSwaggerService(config, container)
-	log.Printf("start listening on localhost:8080")
-	server := &http.Server{Addr: ":8080", Handler: container}
+	log.Printf("start listening on localhost:%s", port)
+	server := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: container}
 	log.Fatal(server.ListenAndServe())
 }

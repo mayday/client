@@ -8,13 +8,13 @@ import (
 )
 
 type RunCommand struct {
+	id      *string
 	pgp     *bool
-	uuid    *string
-	server  *string
-	auth    *string
-	upload  *bool
 	dryRun  *bool
+	server  *string
 	timeout *int
+	token   *string
+	upload  *bool
 }
 
 func (cmd *RunCommand) Name() string {
@@ -26,31 +26,27 @@ func (cmd *RunCommand) Description() string {
 }
 
 func (cmd *RunCommand) DefineFlags(fs *flag.FlagSet) {
-	cmd.pgp = fs.Bool("no-pgp", false, "Disable pgp signature validation")
-	cmd.upload = fs.Bool("no-upload", false, "Don't upload generated reports")
-	cmd.dryRun = fs.Bool("dry-run", false, "Don't run, just output the steps")
-	cmd.timeout = fs.Int("timeout", 0, "Global timeout for executed commands")
-	cmd.uuid = fs.String("uuid", "", "Mayday server address")
-	cmd.server = fs.String("server", core.DefaultAPIBaseURL, "Mayday server address")
-	cmd.auth = fs.String("auth", "", "PGP KeyID to sign the new configuration")
+	cmd.id = fs.String("id", "", "Case id")
+	cmd.pgp = fs.Bool("pgp", true, "Enable pgp signature validation")
+	cmd.dryRun = fs.Bool("dry-run", true, "Enable pgp signature validation")
+	cmd.server = fs.String("server", "", "Mayday server address")
+	cmd.timeout = fs.Int("timeout", 0, "Default timeout for commands")
+	cmd.token = fs.String("token", "", "Authentication token for the case")
+	cmd.upload = fs.Bool("upload", true, "Upload the generated reports to the server")
 }
 
 func (cmd *RunCommand) Run() {
-	if *cmd.uuid == "" {
-		fmt.Println("Please specify a case UUID --uuid UUID\n")
+	if *cmd.id == "" {
+		fmt.Println("Please specify a Case Id --id\n")
 		os.Exit(1)
 	}
 
-	if *cmd.auth == "" {
-		fmt.Println("Please specify the case auth token --auth TOKEN\n")
-		os.Exit(1)
-	}
-	mayday, err := core.NewClient(*cmd.server, *cmd.uuid, *cmd.auth)
+	mayday, err := core.NewClient(*cmd.server, *cmd.id, *cmd.token)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	err = mayday.Run(!*cmd.pgp, *cmd.upload, *cmd.timeout, *cmd.dryRun)
+	err = mayday.Run(*cmd.pgp, *cmd.upload, *cmd.timeout, *cmd.dryRun)
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"code.google.com/p/go.crypto/openpgp"
 	"errors"
 	"fmt"
 	goyaml "gopkg.in/yaml.v1"
@@ -58,7 +59,7 @@ func (c *Config) Sign(keyid string) error {
 	return nil
 }
 
-func (c *Config) Verify(signed string) (*PGPSignature, error) {
+func (c *Config) Verify(signed string) (*openpgp.Entity, error) {
 	pgp, err := NewPGP()
 
 	if err != nil {

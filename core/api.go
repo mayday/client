@@ -18,15 +18,15 @@ const (
 
 type APIClient struct {
 	Server    string
-	UUID      string
+	Id        string
 	AuthToken string
 	Client    *http.Client
 }
 
-func NewAPIClient(server string, uuid string, authToken string) *APIClient {
+func NewAPIClient(server string, id string, authToken string) *APIClient {
 	return &APIClient{
 		Client:    &http.Client{},
-		UUID:      uuid,
+		Id:        id,
 		AuthToken: authToken,
 		Server:    server,
 	}
@@ -73,28 +73,28 @@ func NewCaseResponse(json *simplejson.Json) (*CaseResponse, error) {
 
 type ConfigResponse struct {
 	Signed string
-	Raw    string
+	Config string
 }
 
 func NewConfigResponse(json *simplejson.Json) (*ConfigResponse, error) {
-	raw, err := json.Get("raw").String()
+	config, err := json.Get("Config").String()
 	if err != nil {
 		return nil, err
 	}
 
-	signed, err := json.Get("signed").String()
+	signed, err := json.Get("Signed").String()
 	if err != nil {
 		return nil, err
 	}
 
 	return &ConfigResponse{
-		Raw:    raw,
+		Config: config,
 		Signed: signed,
 	}, nil
 }
 
 func (c *ConfigResponse) GetRawDecoded() string {
-	rawDecoded, _ := base64.StdEncoding.DecodeString(c.Raw)
+	rawDecoded, _ := base64.StdEncoding.DecodeString(c.Config)
 	return string(rawDecoded)
 }
 
@@ -109,6 +109,10 @@ func (api *APIClient) GetFormattedURL(prefix ...string) string {
 }
 
 func (api *APIClient) NewRequest(method string, url string, params []byte, validStatus []int) (*simplejson.Json, error) {
+	if api.AuthToken != "" {
+		url = fmt.Sprintf("%s?token=%s", url, api.AuthToken)
+	}
+
 	request, err := http.NewRequest(method, url, bytes.NewReader(params))
 	if err != nil {
 		return nil, err
@@ -116,10 +120,6 @@ func (api *APIClient) NewRequest(method string, url string, params []byte, valid
 
 	if method == "POST" {
 		request.Header.Set("Content-Type", "application/json")
-	}
-
-	if api.AuthToken != "" {
-		request.Header.Add("Auth-Token", api.AuthToken)
 	}
 
 	response, err := api.Client.Do(request)
@@ -132,8 +132,8 @@ func (api *APIClient) NewRequest(method string, url string, params []byte, valid
 	}
 
 	defer response.Body.Close()
-	reader, err := simplejson.NewFromReader(response.Body)
 
+	reader, err := simplejson.NewFromReader(response.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -141,9 +141,8 @@ func (api *APIClient) NewRequest(method string, url string, params []byte, valid
 	return reader, nil
 }
 
-func (api *APIClient) GetConfig() (*ConfigResponse, error) {
-	response, err := api.NewRequest("GET", api.GetFormattedURL("case", api.UUID), nil, []int{200})
-
+func (api *APIClient) Config() (*ConfigResponse, error) {
+	response, err := api.NewRequest("GET", api.GetFormattedURL("case", api.Id), nil, []int{200})
 	if err != nil {
 		return nil, err
 	}
@@ -172,8 +171,6 @@ func (api *APIClient) Create(description string, private bool, config *Config) (
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println(response)
 
 	new_case, err := NewCaseResponse(response)
 	if err != nil {

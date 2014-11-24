@@ -5,12 +5,11 @@ import (
 	"code.google.com/p/go.crypto/openpgp"
 	"code.google.com/p/gopass"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
 	"path"
-	"strconv"
+	"strings"
 )
 
 type PGP struct {
@@ -78,7 +77,6 @@ func FetchKey(keyid string) error {
 
 	fmt.Printf("PGP Key:%s was not found on your keyring, Do you want to import it? (y/n) ", keyid)
 	fmt.Scanf("%s", &reply)
-
 	if reply != "y" {
 		return fmt.Errorf("Key %s not found and user skipped importing", keyid)
 	}
@@ -93,14 +91,12 @@ func FetchKey(keyid string) error {
 	return nil
 }
 
-func ConfirmKey(signature *PGPSignature, config *Config) bool {
+func ConfirmKey(entity *openpgp.Entity, config *Config) bool {
 	var answer string
+	fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", entity.PrimaryKey.KeyIdShortString())
 
-	for _, key := range signature.Keys {
-		fmt.Printf("Configuration file Signed-off by PGP Key: %s\n", key.PublicKey.KeyIdShortString())
-		for _, identity := range key.Entity.Identities {
-			fmt.Printf(" - %s\n", identity.UserId.Id)
-		}
+	for _, identity := range entity.Identities {
+		fmt.Printf("* %s\n", identity.Name)
 	}
 
 	fmt.Printf("Proceed (y/n)? ")
@@ -141,50 +137,29 @@ func (p *PGP) Sign(readed string, keyid string) (string, error) {
 	}
 
 	buff := new(bytes.Buffer)
-	if err := openpgp.ArmoredDetachSignText(buff, entity, bytes.NewReader([]byte(password)), nil); err != nil {
+	if err := openpgp.ArmoredDetachSign(buff, entity, bytes.NewReader([]byte(readed)), nil); err != nil {
 		return "", err
 	}
 
 	return buff.String(), nil
 }
 
-func (p *PGP) Verify(readed string, signed string) (*PGPSignature, error) {
+func (p *PGP) Verify(readed string, signed string) (*openpgp.Entity, error) {
 	entities, err := ReadKeyRing(p.KeyRingPath)
 
 	if err != nil {
 		return nil, err
 	}
 
-	message, err := openpgp.ReadMessage(bytes.NewBuffer([]byte(signed)), entities, nil, nil)
+	signer, err := openpgp.CheckArmoredDetachedSignature(
+		entities,
+		strings.NewReader(readed),
+		strings.NewReader(signed),
+	)
+
 	if err != nil {
 		return nil, err
 	}
 
-	//The message is signed but the signature is missing from the keyring
-	if message.IsSigned && message.SignedBy == nil {
-		err := FetchKey(strconv.FormatUint(message.SignedByKeyId, 16))
-		if err != nil {
-			return nil, err
-		}
-		return p.Verify(readed, signed)
-	}
-
-	contents, err := ioutil.ReadAll(message.UnverifiedBody)
-	if err != nil {
-		return nil, fmt.Errorf("error reading message body: %s", err)
-	}
-
-	if string(contents) != string(readed) {
-		return nil, fmt.Errorf("Incorrect signature, not valid")
-	}
-
-	if message.SignatureError != nil || message.Signature == nil {
-		return nil, fmt.Errorf("failed to validate signature: %s",
-			message.SignatureError)
-	}
-
-	return &PGPSignature{
-		Keys:  entities.KeysById(message.SignedByKeyId),
-		KeyId: message.SignedByKeyId,
-	}, nil
+	return signer, nil
 }

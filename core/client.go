@@ -55,6 +55,53 @@ func (client *Client) Create(configPath string, description string, private bool
 	return new_case, nil
 }
 
+func (client *Client) PullAll() (map[string]string, error) {
+	apiConfig, err := client.APIClient.Config()
+
+	if err != nil {
+		return nil, fmt.Errorf("Error getting configuration from server: %s", err)
+	}
+
+	files := make(map[string]string, len(apiConfig.Files))
+
+	for _, f := range apiConfig.Files {
+		file, err := client.APIClient.Pull(f)
+		if err != nil {
+			return nil, err
+		}
+
+		files[file.Filename] = file.Content
+	}
+
+	return files, nil
+}
+
+func (client *Client) Pull(id string) (map[string]string, error) {
+	apiConfig, err := client.APIClient.Config()
+
+	if err != nil {
+		return nil, fmt.Errorf("Error getting configuration from server: %s", err)
+	}
+
+	files := make(map[string]string, len(apiConfig.Files))
+
+	for _, f := range apiConfig.Files {
+		if f == id {
+			file, err := client.APIClient.Pull(f)
+			if err != nil {
+				return nil, err
+			}
+			files[file.Filename] = file.Content
+		}
+	}
+
+	if len(files) == 0 {
+		return nil, fmt.Errorf("Not found specified file")
+	}
+
+	return files, nil
+}
+
 func (client *Client) Show() (string, string, error) {
 	apiConfig, err := client.APIClient.Config()
 	if err != nil {
@@ -116,6 +163,20 @@ func (client *Client) Run(pgp bool, upload bool, timeout int, dryRun bool) error
 	}
 
 	wg.Wait()
+
+	filename := fmt.Sprintf("%s.tar.gz", path.Base(reportPath))
+	_, err = exec.Command("tar", "-cvzf", filename, reportPath).Output()
+	if err != nil {
+		return err
+	}
+
+	err = client.APIClient.Upload(filename)
+	if err != nil {
+		return err
+	}
+
+	//TODO: Remove temporary tar file
+
 	return nil
 }
 

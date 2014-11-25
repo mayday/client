@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	simplejson "github.com/bitly/go-simplejson"
+	"io/ioutil"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -71,26 +73,44 @@ func NewCaseResponse(json *simplejson.Json) (*CaseResponse, error) {
 	}, nil
 }
 
+type UploadFile struct {
+	Filename string
+	Content  string
+}
+
 type ConfigResponse struct {
 	Signed string
 	Config string
+	Files  []string
 }
 
-func NewConfigResponse(json *simplejson.Json) (*ConfigResponse, error) {
-	config, err := json.Get("Config").String()
+func NewConfigResponse(j *simplejson.Json) (*ConfigResponse, error) {
+	c := ConfigResponse{}
+
+	config, err := j.Get("Config").String()
 	if err != nil {
 		return nil, err
 	}
 
-	signed, err := json.Get("Signed").String()
+	signed, err := j.Get("Signed").String()
 	if err != nil {
 		return nil, err
 	}
 
-	return &ConfigResponse{
-		Config: config,
-		Signed: signed,
-	}, nil
+	files, err := j.Get("Files").Array()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		q := file.(map[string]interface{})
+		c.Files = append(c.Files, q["Id"].(json.Number).String())
+	}
+
+	c.Config = config
+	c.Signed = signed
+
+	return &c, nil
 }
 
 func (c *ConfigResponse) GetRawDecoded() string {
@@ -178,4 +198,53 @@ func (api *APIClient) Create(description string, private bool, config *Config) (
 	}
 
 	return new_case, nil
+}
+
+func (api *APIClient) Pull(fileId string) (*UploadFile, error) {
+	f, err := api.NewRequest("GET", api.GetFormattedURL("case", api.Id, "file", fileId), nil, []int{200})
+	if err != nil {
+		return nil, err
+	}
+
+	name, err := f.Get("Filename").String()
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := f.Get("Content").String()
+	if err != nil {
+		return nil, err
+	}
+
+	decoded, _ := base64.StdEncoding.DecodeString(content)
+
+	return &UploadFile{
+		Filename: name,
+		Content:  string(decoded),
+	}, nil
+
+}
+
+func (api *APIClient) Upload(filename string) error {
+	readed, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(readed)
+	c, err := json.Marshal(UploadFile{
+		Filename: path.Base(filename),
+		Content:  encoded,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	_, err = api.NewRequest("POST", api.GetFormattedURL("case", api.Id, "file"), c, []int{200, 201})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

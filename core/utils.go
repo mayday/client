@@ -1,25 +1,12 @@
 package core
 
 import (
-	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"os/user"
-	"path"
 	"regexp"
-	"time"
 )
 
-func GetDefaultDirectory() (string, error) {
-	usr, err := user.Current()
-
-	if err != nil {
-		return "", err
-	}
-
-	base := path.Join(usr.HomeDir, ".mayday")
-
+func CreateDirIfNotExists(base string, perms int) (string, error) {
 	if _, err := os.Stat(base); os.IsNotExist(err) {
 		err := os.MkdirAll(base, 0700)
 		if err != nil {
@@ -28,54 +15,6 @@ func GetDefaultDirectory() (string, error) {
 	}
 
 	return base, nil
-}
-
-func GetDefaultReportsDirectory() (string, error) {
-	base, err := GetDefaultDirectory()
-
-	if err != nil {
-		return "", err
-	}
-
-	reports := path.Join(base, ".reports")
-
-	if _, err := os.Stat(reports); os.IsNotExist(err) {
-		err := os.MkdirAll(reports, 0700)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return base, nil
-}
-
-func GetTempReportDirectory() (string, error) {
-	hostname, err := os.Hostname()
-
-	if err != nil {
-		return "", err
-	}
-
-	current := time.Now().Local()
-
-	base, err := GetDefaultReportsDirectory()
-	if err != nil {
-		return "", err
-	}
-
-	//TODO: Make the report format configurable via CLI
-	reportPath, err := ioutil.TempDir(base,
-		fmt.Sprintf("%s-%d-%d-%d-", hostname, current.Year(), current.Month(), current.Day()))
-
-	if err != nil {
-		return "", err
-	}
-
-	return reportPath, nil
-}
-
-func GetReportConfigFiles(base string) (string, string) {
-	return path.Join(base, "config.yaml"), path.Join(base, "config.yaml.sig")
 }
 
 func CopyFile(source string, dest string) (err error) {

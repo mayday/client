@@ -64,27 +64,26 @@ func (cmd *PullCommand) Run() {
 		}
 	}
 
-	for name, content := range files {
-		filename := ""
-		if *cmd.to == "" {
-			base, err := core.GetDefaultDirectory()
+	base := *cmd.to
+
+	if base == "" {
+		base, err := core.GetDefaultDirectory()
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		base = path.Join(base, "pull", *cmd.id)
+		if _, err := os.Stat(base); os.IsNotExist(err) {
+			err := os.MkdirAll(base, 0700)
 			if err != nil {
 				fmt.Println(err)
 			}
-
-			base = path.Join(base, "pull", *cmd.id)
-			if _, err := os.Stat(base); os.IsNotExist(err) {
-				err := os.MkdirAll(base, 0700)
-				if err != nil {
-					fmt.Println(err)
-				}
-			}
-
-			filename = path.Join(base, name)
-		} else {
-			filename = path.Join(*cmd.to, name)
 		}
 
+	}
+
+	for name, content := range files {
+		filename := path.Join(base, name)
 		err := ioutil.WriteFile(filename, []byte(content), 0700)
 		if err != nil {
 			fmt.Println("Error writing file")
@@ -92,6 +91,4 @@ func (cmd *PullCommand) Run() {
 			fmt.Printf("Pulled report on path: %s\n", filename)
 		}
 	}
-
-	// real stuff
 }

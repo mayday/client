@@ -29,7 +29,7 @@ func (cmd *RunCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.id = fs.String("id", "", "Case id")
 	cmd.pgp = fs.Bool("pgp", true, "Enable pgp signature validation")
 	cmd.dryRun = fs.Bool("dry-run", true, "Enable pgp signature validation")
-	cmd.server = fs.String("server", "", "Mayday server address")
+	cmd.server = fs.String("server", core.DefaultAPIBaseURL, "Mayday server address")
 	cmd.timeout = fs.Int("timeout", 0, "Default timeout for commands")
 	cmd.token = fs.String("token", "", "Authentication token for the case")
 	cmd.upload = fs.Bool("upload", true, "Upload the generated reports to the server")

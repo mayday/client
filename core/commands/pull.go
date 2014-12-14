@@ -35,13 +35,13 @@ func (cmd *PullCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.server = fs.String("server", core.DefaultAPIBaseURL, "Mayday server address")
 }
 
-func (cmd *PullCommand) Run() {
+func (cmd *PullCommand) Run(env core.Environment) {
 	if *cmd.id == "" {
 		fmt.Println("Please specify a valid Case Id --id\n")
 		os.Exit(1)
 	}
 
-	mayday, err := core.NewClient(*cmd.server, *cmd.id, *cmd.token)
+	mayday, err := core.NewClient(env, *cmd.server, *cmd.id, *cmd.token)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -67,7 +67,7 @@ func (cmd *PullCommand) Run() {
 	base := *cmd.to
 
 	if base == "" {
-		base, err := core.GetDefaultDirectory()
+		base, err := env.GetDefaultDirectory()
 		if err != nil {
 			fmt.Println(err)
 		}

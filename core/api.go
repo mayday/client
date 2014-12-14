@@ -18,20 +18,21 @@ const (
 	DefaultAPIVersion = 1
 )
 
-type APIClient struct {
+type APIClient interface {
+	GetFormattedURL(prefix ...string) string
+	NewRequest(method string, url string, params []byte,
+		validStatus []int) (*simplejson.Json, error)
+	Config() (*ConfigResponse, error)
+	Create(description string, private bool, config *Config) (*CaseResponse, error)
+	Pull(fileId string) (*UploadFile, error)
+	Upload(filename string) error
+}
+
+type DefaultAPIClient struct {
 	Server    string
 	Id        string
 	AuthToken string
 	Client    *http.Client
-}
-
-func NewAPIClient(server string, id string, authToken string) *APIClient {
-	return &APIClient{
-		Client:    &http.Client{},
-		Id:        id,
-		AuthToken: authToken,
-		Server:    server,
-	}
 }
 
 type CaseResponse struct {
@@ -123,12 +124,14 @@ func (c *ConfigResponse) GetSignedDecoded() string {
 	return string(signedDecoded)
 }
 
-func (api *APIClient) GetFormattedURL(prefix ...string) string {
+func (api DefaultAPIClient) GetFormattedURL(prefix ...string) string {
 	return fmt.Sprintf("%s/%s/%s", api.Server, strconv.Itoa(DefaultAPIVersion),
 		strings.Join(prefix, "/"))
 }
 
-func (api *APIClient) NewRequest(method string, url string, params []byte, validStatus []int) (*simplejson.Json, error) {
+func (api DefaultAPIClient) NewRequest(method string, url string,
+	params []byte, validStatus []int) (*simplejson.Json, error) {
+
 	if api.AuthToken != "" {
 		url = fmt.Sprintf("%s?token=%s", url, api.AuthToken)
 	}
@@ -161,7 +164,7 @@ func (api *APIClient) NewRequest(method string, url string, params []byte, valid
 	return reader, nil
 }
 
-func (api *APIClient) Config() (*ConfigResponse, error) {
+func (api DefaultAPIClient) Config() (*ConfigResponse, error) {
 	response, err := api.NewRequest("GET", api.GetFormattedURL("case", api.Id), nil, []int{200})
 	if err != nil {
 		return nil, err
@@ -175,7 +178,7 @@ func (api *APIClient) Config() (*ConfigResponse, error) {
 	return config, nil
 }
 
-func (api *APIClient) Create(description string, private bool, config *Config) (*CaseResponse, error) {
+func (api DefaultAPIClient) Create(description string, private bool, config *Config) (*CaseResponse, error) {
 	c, err := json.Marshal(CaseResponse{
 		IsPrivate:   private,
 		Description: description,
@@ -200,7 +203,7 @@ func (api *APIClient) Create(description string, private bool, config *Config) (
 	return new_case, nil
 }
 
-func (api *APIClient) Pull(fileId string) (*UploadFile, error) {
+func (api DefaultAPIClient) Pull(fileId string) (*UploadFile, error) {
 	f, err := api.NewRequest("GET", api.GetFormattedURL("case", api.Id, "file", fileId), nil, []int{200})
 	if err != nil {
 		return nil, err
@@ -225,7 +228,7 @@ func (api *APIClient) Pull(fileId string) (*UploadFile, error) {
 
 }
 
-func (api *APIClient) Upload(filename string) error {
+func (api DefaultAPIClient) Upload(filename string) error {
 	readed, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err

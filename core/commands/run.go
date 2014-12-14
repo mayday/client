@@ -35,13 +35,13 @@ func (cmd *RunCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.upload = fs.Bool("upload", true, "Upload the generated reports to the server")
 }
 
-func (cmd *RunCommand) Run() {
+func (cmd *RunCommand) Run(env core.Environment) {
 	if *cmd.id == "" {
 		fmt.Println("Please specify a Case Id --id\n")
 		os.Exit(1)
 	}
 
-	mayday, err := core.NewClient(*cmd.server, *cmd.id, *cmd.token)
+	mayday, err := core.NewClient(env, *cmd.server, *cmd.id, *cmd.token)
 	if err != nil {
 		fmt.Println(err)
 	}

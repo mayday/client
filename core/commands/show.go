@@ -27,23 +27,22 @@ func (cmd *ShowCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.server = fs.String("server", core.DefaultAPIBaseURL, "Mayday server address")
 }
 
-func (cmd *ShowCommand) Run() {
+func (cmd *ShowCommand) Run(env core.Environment) {
 	if *cmd.id == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	mayday, err := core.NewClient(*cmd.server, *cmd.id, *cmd.token)
+	mayday, err := core.NewClient(env, *cmd.server, *cmd.id, *cmd.token)
 
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	uuid, config, err := mayday.Show()
+	config, err := mayday.Show()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	fmt.Printf("Current configuration for case id: %s\n\n\n", uuid)
 	fmt.Printf("%s\n", config)
 }

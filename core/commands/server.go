@@ -2,6 +2,7 @@ package commands
 
 import (
 	"flag"
+	"mayday/core"
 	"mayday/server"
 )
 
@@ -25,6 +26,6 @@ func (cmd *ServerCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.bind = fs.String("bind", "0.0.0.0", "Address to bind the mayday server")
 }
 
-func (cmd *ServerCommand) Run() {
-	server.Start(*cmd.bind, *cmd.port, *cmd.storage)
+func (cmd *ServerCommand) Run(env core.Environment) {
+	server.Start(env, *cmd.bind, *cmd.port, *cmd.storage)
 }

@@ -25,6 +25,6 @@ func (cmd *UpdateCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.server = fs.String("server", core.DefaultAPIBaseURL, "Mayday server address")
 }
 
-func (cmd *UpdateCommand) Run() {
+func (cmd *UpdateCommand) Run(env core.Environment) {
 	// real stuff
 }

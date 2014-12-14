@@ -1,11 +1,15 @@
 package main
 
 import (
+	"mayday/core"
 	"mayday/core/commands"
 )
 
 func main() {
-	commands.Parse(
+
+	env := core.DefaultEnvironment{}
+
+	commands.Parse(env,
 		new(commands.RunCommand),
 		new(commands.UpdateCommand),
 		new(commands.PullCommand),

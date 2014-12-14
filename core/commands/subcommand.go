@@ -3,6 +3,7 @@ package commands
 import (
 	"flag"
 	"fmt"
+	"mayday/core"
 	"os"
 )
 
@@ -10,7 +11,7 @@ type subCommand interface {
 	Name() string
 	Description() string
 	DefineFlags(*flag.FlagSet)
-	Run()
+	Run(env core.Environment)
 }
 
 type subCommandParser struct {
@@ -18,7 +19,7 @@ type subCommandParser struct {
 	fs  *flag.FlagSet
 }
 
-func Parse(commands ...subCommand) {
+func Parse(env core.Environment, commands ...subCommand) {
 	scp := make(map[string]*subCommandParser, len(commands))
 	for _, cmd := range commands {
 		name := cmd.Name()
@@ -46,7 +47,7 @@ func Parse(commands ...subCommand) {
 	cmdname := flag.Arg(0)
 	if sc, ok := scp[cmdname]; ok {
 		sc.fs.Parse(flag.Args()[1:])
-		sc.cmd.Run()
+		sc.cmd.Run(env)
 	} else {
 		fmt.Fprintf(os.Stderr, "error: %s is not a valid command", cmdname)
 		flag.Usage()

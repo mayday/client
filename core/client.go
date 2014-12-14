@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -11,25 +12,26 @@ import (
 )
 
 type Client struct {
-	Hostname    string
-	ReportsPath string
-	APIClient   *APIClient
+	Hostname  string
+	APIClient APIClient
+	Env       Environment
 }
 
-func NewClient(server string, uuid string, authToken string) (*Client, error) {
-	reportsPath, err := GetDefaultReportsDirectory()
-	if err != nil {
-		return nil, err
+func NewClient(env Environment, server string, uuid string, authToken string) (*Client, error) {
+	api := &DefaultAPIClient{
+		Client:    &http.Client{},
+		Server:    server,
+		Id:        uuid,
+		AuthToken: authToken,
 	}
 
 	return &Client{
-		ReportsPath: reportsPath,
-		APIClient:   NewAPIClient(server, uuid, authToken),
+		Env:       env,
+		APIClient: api,
 	}, nil
 }
 
 func (client *Client) Create(configPath string, description string, private bool, pgp bool, keyid string) (interface{}, error) {
-
 	readed, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading configuration file from path: %s", err)
@@ -102,17 +104,16 @@ func (client *Client) Pull(id string) (map[string]string, error) {
 	return files, nil
 }
 
-func (client *Client) Show() (string, string, error) {
+func (client *Client) Show() (interface{}, error) {
 	apiConfig, err := client.APIClient.Config()
 	if err != nil {
-		return "", "", fmt.Errorf("Error getting configuration from server: %s", err)
+		return nil, fmt.Errorf("Error getting configuration from server: %s", err)
 	}
-
-	return client.APIClient.Id, apiConfig.Config, nil
+	return apiConfig, nil
 }
 
 func (client *Client) Run(pgp bool, upload bool, timeout int, dryRun bool) error {
-	reportPath, err := GetTempReportDirectory()
+	reportPath, err := client.Env.GetTempReportDirectory()
 
 	if err != nil {
 		return err
@@ -181,33 +182,6 @@ func (client *Client) Run(pgp bool, upload bool, timeout int, dryRun bool) error
 }
 
 func (m *Client) RunCommand(reportPath string, command Command, wg *sync.WaitGroup) {
-	// cmd := exec.Command("/bin/bash", "-c", command.Executable)
-
-	// if timeout == 0 {
-	// 	if err := cmd.Start(); err != nil {
-
-	// 	} else {
-	// 		log.Printf("Running command: %s", command.Executable)
-	// 	}
-	// } else {
-	// 	done := make(chan error)
-	// 	go func() {
-	// 		done <- cmd.Run()
-	// 	}()
-
-	// 	select {
-	// 	case <-time.After(time.Duration(timeout) * time.Second):
-	// 		if err := cmd.Process.kill(); err != nil {
-	// 			log.Fatal("Cannot kill process: ", err)
-	// 		}
-	// 		<- done
-	// 		log.Printf("Command:%s killed by timeout", command.Executable)
-	// 	case err := <- done:
-
-	// }
-
-	// defer close(done)
-
 	log.Printf("Running %s", command.Executable)
 	ran, _ := exec.Command("/bin/bash", "-c", command.Executable).Output()
 	outfile, _ := os.Create(command.GetFileName(reportPath))

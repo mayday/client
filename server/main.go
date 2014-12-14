@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/astaxie/beego/orm"
 	"github.com/emicklei/go-restful"
-	"github.com/emicklei/go-restful/swagger"
+	//"github.com/emicklei/go-restful/swagger"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"log"
@@ -240,26 +240,11 @@ func init() {
 	}
 }
 
-func GetDefaultStoragePath() string {
-	base, err := core.GetDefaultDirectory()
-
-	if err != nil {
-		return ""
-	}
-
-	base = path.Join(base, "files")
-	if _, err := os.Stat(base); os.IsNotExist(err) {
-		os.Mkdir(base, 0700)
-	}
-
-	return base
-}
-
-func Start(bind string, port int, storage string) {
+func Start(env core.Environment, bind string, port int, storage string) {
 	handler := &CaseHandler{}
 
 	if _, err := os.Stat(storage); os.IsNotExist(err) || storage == "" {
-		storage = GetDefaultStoragePath()
+		storage, _ = env.GetDefaultStoragePath()
 	}
 
 	handler.StoragePath = storage
@@ -299,14 +284,14 @@ func Start(bind string, port int, storage string) {
 	container := restful.NewContainer()
 	container.Add(ws)
 
-	config := swagger.Config{
-		WebServices:    container.RegisteredWebServices(),
-		WebServicesUrl: "http://localhost:8080",
-		ApiPath:        "/apidocs.json",
-		SwaggerPath:    "/apidocs/",
-	}
+	// config := swagger.Config{
+	// 	WebServices:    container.RegisteredWebServices(),
+	// 	WebServicesUrl: "http://localhost:8080",
+	// 	ApiPath:        "/apidocs.json",
+	// 	SwaggerPath:    "/apidocs/",
+	// }
 
-	swagger.RegisterSwaggerService(config, container)
+	// swagger.RegisterSwaggerService(config, container)
 	log.Printf("start listening on localhost:%s", port)
 	server := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: container}
 	log.Fatal(server.ListenAndServe())

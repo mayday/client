@@ -33,8 +33,8 @@ func (cmd *CreateCommand) DefineFlags(fs *flag.FlagSet) {
 	cmd.config = fs.String("config", "", "Configuration file for case")
 }
 
-func (cmd *CreateCommand) Run() {
-	mayday, err := core.NewClient(*cmd.server, "", "")
+func (cmd *CreateCommand) Run(env core.Environment) {
+	mayday, err := core.NewClient(env, *cmd.server, "", "")
 
 	if err != nil {
 		fmt.Println(err)
